@@ -1,5 +1,10 @@
 import sqlite3
 from sqlite3 import Error
+import hashlib
+
+def _hash_password(password):
+    """Hashea una contraseña usando SHA-256."""
+    return hashlib.sha256(password.encode('utf-8')).hexdigest()
 
 def create_connection():
     """Crea una conexión a la base de datos SQLite."""
@@ -75,6 +80,58 @@ def create_tables():
             conn.close()
     else:
         print("Error! No se pudo crear la conexión a la base de datos.")
+
+def register_user(email, password):
+    """Registra un nuevo usuario con una contraseña hasheada."""
+    password_hash = _hash_password(password)
+    conn = create_connection()
+    if conn is None:
+        return False
+
+    sql = ''' INSERT INTO users(email,password)
+              VALUES(?,?) '''
+    try:
+        cursor = conn.cursor()
+        cursor.execute(sql, (email, password_hash))
+        conn.commit()
+        print(f"Usuario {email} registrado exitosamente.")
+        return True
+    except sqlite3.IntegrityError:
+        # Esto es esperado si el usuario ya existe, no es un error fatal.
+        print(f"Info: El email {email} ya existe.")
+        return False
+    except Error as e:
+        print(e)
+        return False
+    finally:
+        if conn:
+            conn.close()
+
+def login_user(email, password):
+    """Verifica las credenciales de un usuario."""
+    conn = create_connection()
+    if conn is None:
+        return False
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT password FROM users WHERE email = ?", (email,))
+        user_record = cursor.fetchone()
+
+        if user_record is None:
+            return False # Usuario no encontrado
+
+        stored_password_hash = user_record[0]
+        entered_password_hash = _hash_password(password)
+
+        # Comparación segura de hashes
+        return stored_password_hash == entered_password_hash
+    except Error as e:
+        print(e)
+        return False
+    finally:
+        if conn:
+            conn.close()
 
 if __name__ == '__main__':
     create_tables()
