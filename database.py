@@ -1,6 +1,7 @@
 import sqlite3
 from sqlite3 import Error
 import hashlib
+import datetime
 
 def _hash_password(password):
     """Hashea una contraseña usando SHA-256."""
@@ -50,6 +51,7 @@ def create_tables():
                 name TEXT,
                 createdAt TEXT,
                 deleted INTEGER DEFAULT 0,
+                deletedAt TEXT,
                 company_id INTEGER,
                 FOREIGN KEY(company_id) REFERENCES companies(id)
             );
@@ -132,6 +134,190 @@ def login_user(email, password):
     finally:
         if conn:
             conn.close()
+
+# --- Funciones de Companies ---
+
+def add_company(name):
+    """Inserta una nueva empresa en la base de datos."""
+    conn = create_connection()
+    if conn is None:
+        return None
+
+    sql = ''' INSERT INTO companies(name, createdAt, deleted)
+              VALUES(?,?,?) '''
+    try:
+        cursor = conn.cursor()
+        current_time = datetime.datetime.now().isoformat()
+        cursor.execute(sql, (name, current_time, 0))
+        conn.commit()
+        return cursor.lastrowid
+    except Error as e:
+        print(f"Error al añadir empresa: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+def get_companies(include_deleted=False):
+    """Devuelve una lista de todas las empresas."""
+    conn = create_connection()
+    if conn is None:
+        return []
+
+    try:
+        cursor = conn.cursor()
+        query = "SELECT id, name FROM companies"
+        if not include_deleted:
+            query += " WHERE deleted = 0"
+        query += " ORDER BY name"
+
+        cursor.execute(query)
+        companies = cursor.fetchall()
+        return companies
+    except Error as e:
+        print(f"Error al obtener empresas: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
+
+def delete_company(company_id):
+    """Marca una empresa como eliminada (soft delete)."""
+    conn = create_connection()
+    if conn is None:
+        return False
+
+    sql = ''' UPDATE companies
+              SET deleted = 1, deletedAt = ?
+              WHERE id = ? '''
+    try:
+        cursor = conn.cursor()
+        current_time = datetime.datetime.now().isoformat()
+        cursor.execute(sql, (current_time, company_id))
+        conn.commit()
+        return True
+    except Error as e:
+        print(f"Error al eliminar empresa: {e}")
+        return False
+    finally:
+        if conn:
+            conn.close()
+
+def rename_company_and_update_invoices(company_id, old_name, new_name):
+    """
+    Renombra una empresa y actualiza todas las facturas asociadas
+    dentro de una única transacción.
+    """
+    conn = create_connection()
+    if conn is None:
+        return False
+
+    try:
+        cursor = conn.cursor()
+        # Iniciar transacción
+        cursor.execute("BEGIN")
+
+        # 1. Actualizar el nombre en la tabla 'companies'
+        cursor.execute("UPDATE companies SET name = ? WHERE id = ?", (new_name, company_id))
+
+        # 2. Actualizar el nombre en la tabla 'invoices'
+        cursor.execute("UPDATE invoices SET company = ? WHERE company = ?", (new_name, old_name))
+
+        # Confirmar transacción
+        conn.commit()
+        return True
+    except Error as e:
+        print(f"Error en la transacción de renombrar empresa: {e}")
+        conn.rollback()
+        return False
+    finally:
+        if conn:
+            conn.close()
+
+# --- Funciones de Clients ---
+
+def add_client(company_id, client_name):
+    """Añade un nuevo cliente asociado a una empresa."""
+    conn = create_connection()
+    if conn is None:
+        return None
+
+    sql = ''' INSERT INTO clients(name, createdAt, deleted, company_id)
+              VALUES(?,?,?,?) '''
+    try:
+        cursor = conn.cursor()
+        current_time = datetime.datetime.now().isoformat()
+        cursor.execute(sql, (client_name, current_time, 0, company_id))
+        conn.commit()
+        return cursor.lastrowid
+    except Error as e:
+        print(f"Error al añadir cliente: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+def get_clients_for_company(company_id):
+    """Devuelve una lista de clientes para una empresa específica."""
+    conn = create_connection()
+    if conn is None:
+        return []
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, name FROM clients WHERE company_id = ? AND deleted = 0 ORDER BY name", (company_id,))
+        clients = cursor.fetchall()
+        return clients
+    except Error as e:
+        print(f"Error al obtener clientes: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
+
+def edit_client(client_id, new_name):
+    """Actualiza el nombre de un cliente."""
+    conn = create_connection()
+    if conn is None:
+        return False
+
+    sql = ''' UPDATE clients
+              SET name = ?
+              WHERE id = ? '''
+    try:
+        cursor = conn.cursor()
+        cursor.execute(sql, (new_name, client_id))
+        conn.commit()
+        return True
+    except Error as e:
+        print(f"Error al editar cliente: {e}")
+        return False
+    finally:
+        if conn:
+            conn.close()
+
+def delete_client(client_id):
+    """Marca un cliente como eliminado (soft delete)."""
+    conn = create_connection()
+    if conn is None:
+        return False
+
+    sql = ''' UPDATE clients
+              SET deleted = 1, deletedAt = ?
+              WHERE id = ? '''
+    try:
+        cursor = conn.cursor()
+        current_time = datetime.datetime.now().isoformat()
+        cursor.execute(sql, (current_time, client_id))
+        conn.commit()
+        return True
+    except Error as e:
+        print(f"Error al eliminar cliente: {e}")
+        return False
+    finally:
+        if conn:
+            conn.close()
+
 
 if __name__ == '__main__':
     create_tables()
