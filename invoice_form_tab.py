@@ -21,6 +21,11 @@ class InvoiceFormTab(ttk.Frame):
         self._create_widgets()
         self._load_companies()
 
+    def handle_companies_updated(self, event=None):
+        """Maneja el evento de actualización de empresas."""
+        print("Evento <<CompaniesUpdated>> recibido en Registrar Factura. Recargando empresas...")
+        self._load_companies()
+
     def _create_widgets(self):
         """Crea la interfaz de usuario del formulario de factura."""
         form_frame = ttk.Frame(self)

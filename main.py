@@ -1,60 +1,109 @@
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox
 import database
-from login_screen import LoginScreen
 from company_management_tab import CompanyManagementTab
 from invoice_form_tab import InvoiceFormTab
 from report_tab import ReportTab
+from login_screen import LoginScreen
 
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Gestión de Facturas")
-        self.geometry("1280x720") # Aumentamos el tamaño para la pestaña de reportes
+        self.geometry("1280x720")
+        self.logged_in = False
 
-        # Crear tablas de la base de datos al iniciar
         database.create_tables()
+        self._create_widgets()
+        self._update_login_status()
 
-        # Configurar el contenedor principal
-        self.container = ttk.Frame(self)
-        self.container.pack(fill="both", expand=True)
+    def _create_widgets(self):
+        # Frame principal
+        main_frame = ttk.Frame(self)
+        main_frame.pack(fill="both", expand=True)
 
-        self._create_main_tabs()
-        self._show_login_screen()
+        # Notebook para las pestañas
+        self.notebook = ttk.Notebook(main_frame)
+        self.notebook.pack(fill="both", expand=True)
 
-    def _create_main_tabs(self):
-        """Crea el Notebook con las pestañas principales, pero no lo muestra."""
-        self.main_notebook = ttk.Notebook(self.container)
+        # Pestaña 1: Registrar Factura (siempre visible)
+        self.invoice_form_tab = InvoiceFormTab(self.notebook)
+        self.notebook.add(self.invoice_form_tab, text='Registrar Factura')
 
-        # Pestaña 1: Empresas
-        company_tab = CompanyManagementTab(self.main_notebook)
-        self.main_notebook.add(company_tab, text='Empresas')
+        # Pestaña 2: Empresas (placeholder inicial)
+        self.company_tab_placeholder = self._create_placeholder_tab("Empresas")
+        self.notebook.add(self.company_tab_placeholder, text='Empresas', state='disabled')
 
-        # Pestaña 2: Registrar Factura
-        invoice_form_tab = InvoiceFormTab(self.main_notebook)
-        self.main_notebook.add(invoice_form_tab, text='Registrar Factura')
+        # Pestaña 3: Reportes (placeholder inicial)
+        self.report_tab_placeholder = self._create_placeholder_tab("Reportes")
+        self.notebook.add(self.report_tab_placeholder, text='Reportes', state='disabled')
 
-        # Pestaña 3: Reportes
-        self.report_tab = ReportTab(self.main_notebook)
-        self.main_notebook.add(self.report_tab, text='Reportes')
+        # Barra de estado
+        self.status_bar = ttk.Frame(self)
+        self.status_bar.pack(side="bottom", fill="x")
+        self.login_status_label = ttk.Label(self.status_bar, text="No ha iniciado sesión")
+        self.login_status_label.pack(side="left", padx=10)
+        self.login_button = ttk.Button(self.status_bar, text="Iniciar Sesión", command=self._show_login_screen)
+        self.login_button.pack(side="right", padx=10)
+
+    def _create_placeholder_tab(self, tab_name):
+        frame = ttk.Frame(self.notebook)
+        ttk.Label(frame, text=f"Inicie sesión para acceder a '{tab_name}'").pack(pady=50)
+        return frame
+
+    def _update_login_status(self):
+        if self.logged_in:
+            self.login_status_label.config(text="Sesión iniciada")
+            self.login_button.config(text="Cerrar Sesión", command=self._logout)
+
+            # Habilitar y cargar pestañas protegidas
+            self._enable_protected_tabs()
+        else:
+            self.login_status_label.config(text="No ha iniciado sesión")
+            self.login_button.config(text="Iniciar Sesión", command=self._show_login_screen)
+            # Deshabilitar pestañas si es necesario (manejar logout)
+            self._disable_protected_tabs()
 
     def _show_login_screen(self):
-        """Muestra la pantalla de login."""
-        self.login_screen = LoginScreen(self.container, on_login_success=self._on_login_success)
-        self.login_screen.pack(fill="both", expand=True)
+        login_window = tk.Toplevel(self)
+        login_window.title("Iniciar Sesión")
+        login_window.geometry("400x300")
+        login_screen = LoginScreen(login_window, on_login_success=lambda: self._on_login_success(login_window))
 
-    def _on_login_success(self):
-        """Callback que se ejecuta cuando el login es exitoso."""
-        # Oculta la pantalla de login
-        self.login_screen.pack_forget()
-        self.login_screen.destroy()
+    def _on_login_success(self, login_window):
+        login_window.destroy()
+        self.logged_in = True
+        self._update_login_status()
 
-        # Muestra el contenido principal de la aplicación
-        self.main_notebook.pack(expand=True, fill='both')
+    def _logout(self):
+        self.logged_in = False
+        self._update_login_status()
 
-        # Configurar el binding del evento DESPUÉS de que los widgets principales sean visibles
+    def _enable_protected_tabs(self):
+        # Eliminar placeholder de Empresas y añadir la pestaña real
+        self.notebook.forget(1) # El índice 1 es la segunda pestaña
+        self.company_tab = CompanyManagementTab(self.notebook)
+        self.notebook.insert(1, self.company_tab, text='Empresas')
+        self.notebook.tab(1, state='normal')
+
+        # Eliminar placeholder de Reportes y añadir la pestaña real
+        self.notebook.forget(2) # El índice 2 es ahora la tercera pestaña
+        self.report_tab = ReportTab(self.notebook)
+        self.notebook.insert(2, self.report_tab, text='Reportes')
+        self.notebook.tab(2, state='normal')
+
+        # Configurar bindings después de crear las pestañas
         self.bind("<<InvoiceSaved>>", self.report_tab.handle_invoice_saved)
+        self.bind("<<CompaniesUpdated>>", self.invoice_form_tab.handle_companies_updated)
+        self.bind("<<CompaniesUpdated>>", self.report_tab.handle_companies_updated, add='+')
 
+    def _disable_protected_tabs(self):
+        # Revertir a placeholders si las pestañas existen
+        # Esta lógica es compleja, una simplificación por ahora es solo deshabilitar
+        if hasattr(self, 'company_tab'):
+            self.notebook.tab(1, state='disabled')
+        if hasattr(self, 'report_tab'):
+            self.notebook.tab(2, state='disabled')
 
 if __name__ == '__main__':
     app = App()

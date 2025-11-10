@@ -214,3 +214,8 @@ class ReportTab(ttk.Frame):
         """Receptor de eventos para recargar el reporte."""
         print("Evento <<InvoiceSaved>> recibido. Recargando reporte...")
         self._load_report()
+
+    def handle_companies_updated(self, event=None):
+        """Maneja el evento de actualización de empresas."""
+        print("Evento <<CompaniesUpdated>> recibido en Reportes. Recargando filtros...")
+        self._load_company_filter()

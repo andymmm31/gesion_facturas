@@ -116,6 +116,7 @@ class CompanyManagementTab(ttk.Frame):
         if name:
             database.add_company(name)
             self._load_companies()
+            self.master.event_generate("<<CompaniesUpdated>>")
 
     def _edit_company(self):
         selected_items = self.company_tree.selection()
@@ -130,6 +131,7 @@ class CompanyManagementTab(ttk.Frame):
             if database.rename_company_and_update_invoices(self.selected_company_id, old_name, new_name):
                 self._load_companies()
                 self.client_label.config(text=f"Clientes de: {new_name}")
+                self.master.event_generate("<<CompaniesUpdated>>")
             else:
                 messagebox.showerror("Error", "No se pudo renombrar la empresa.")
 
@@ -145,6 +147,7 @@ class CompanyManagementTab(ttk.Frame):
             self.client_label.config(text="Clientes de: (Seleccione una empresa)")
             self.selected_company_id = None
             self.selected_company_name = None
+            self.master.event_generate("<<CompaniesUpdated>>")
 
     # --- Lógica de Botones de Clientes ---
     def _add_client(self):
