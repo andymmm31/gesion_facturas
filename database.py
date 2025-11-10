@@ -404,44 +404,85 @@ def update_invoice(invoice_id, invoice_data):
         if conn:
             conn.close()
 
-def get_invoices_for_report(filters):
+def get_invoices_for_report(start_date=None, end_date=None, company=None, client=None):
     """
     Obtiene facturas para un reporte, con filtros opcionales.
-    'filters' es un diccionario que puede contener:
-    'start_date', 'end_date', 'company', 'client'
     """
     conn = create_connection()
     if conn is None:
         return []
 
     try:
+        conn.row_factory = sqlite3.Row # Devolver filas como diccionarios
         cursor = conn.cursor()
         query = "SELECT * FROM invoices WHERE 1=1"
         params = {}
 
-        if filters.get('start_date'):
+        if start_date:
             query += " AND invoiceDate >= :start_date"
-            params['start_date'] = filters['start_date']
+            params['start_date'] = start_date
 
-        if filters.get('end_date'):
+        if end_date:
             query += " AND invoiceDate <= :end_date"
-            params['end_date'] = filters['end_date']
+            params['end_date'] = end_date
 
-        if filters.get('company'):
+        if company:
             query += " AND company = :company"
-            params['company'] = filters['company']
+            params['company'] = company
 
-        if filters.get('client'):
+        if client:
             query += " AND client = :client"
-            params['client'] = filters['client']
+            params['client'] = client
 
         query += " ORDER BY invoiceDate DESC"
 
         cursor.execute(query, params)
-        return cursor.fetchall()
+        # Convertir las filas a diccionarios estándar
+        rows = [dict(row) for row in cursor.fetchall()]
+        return rows
     except Error as e:
         print(f"Error al obtener facturas para reporte: {e}")
         return []
+    finally:
+        if conn:
+            conn.close()
+
+def delete_invoice(invoice_id):
+    """Elimina una factura de la base de datos."""
+    conn = create_connection()
+    if conn is None:
+        return False
+
+    sql = 'DELETE FROM invoices WHERE id = ?'
+    try:
+        cursor = conn.cursor()
+        cursor.execute(sql, (invoice_id,))
+        conn.commit()
+        return True
+    except Error as e:
+        print(f"Error al eliminar factura: {e}")
+        return False
+    finally:
+        if conn:
+            conn.close()
+
+def update_invoice_factor_and_amount(invoice_id, new_factor, base_amount, iva_amount, re_amount):
+    """Actualiza el factor y el importe total de una factura."""
+    conn = create_connection()
+    if conn is None:
+        return False
+
+    new_total = (base_amount + iva_amount + re_amount) * new_factor
+    sql = 'UPDATE invoices SET factor = ?, amount = ? WHERE id = ?'
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute(sql, (new_factor, new_total, invoice_id))
+        conn.commit()
+        return True
+    except Error as e:
+        print(f"Error al actualizar el factor de la factura: {e}")
+        return False
     finally:
         if conn:
             conn.close()

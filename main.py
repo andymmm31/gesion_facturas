@@ -4,12 +4,13 @@ import database
 from login_screen import LoginScreen
 from company_management_tab import CompanyManagementTab
 from invoice_form_tab import InvoiceFormTab
+from report_tab import ReportTab
 
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Gestión de Facturas")
-        self.geometry("1024x768")
+        self.geometry("1280x720") # Aumentamos el tamaño para la pestaña de reportes
 
         # Crear tablas de la base de datos al iniciar
         database.create_tables()
@@ -33,10 +34,9 @@ class App(tk.Tk):
         invoice_form_tab = InvoiceFormTab(self.main_notebook)
         self.main_notebook.add(invoice_form_tab, text='Registrar Factura')
 
-        # Pestaña 3: Reportes (placeholder)
-        reportes_frame = ttk.Frame(self.main_notebook)
-        self.main_notebook.add(reportes_frame, text='Reportes')
-        ttk.Label(reportes_frame, text="Contenido de Reportes").pack(pady=20, padx=20)
+        # Pestaña 3: Reportes
+        self.report_tab = ReportTab(self.main_notebook)
+        self.main_notebook.add(self.report_tab, text='Reportes')
 
     def _show_login_screen(self):
         """Muestra la pantalla de login."""
@@ -51,6 +51,10 @@ class App(tk.Tk):
 
         # Muestra el contenido principal de la aplicación
         self.main_notebook.pack(expand=True, fill='both')
+
+        # Configurar el binding del evento DESPUÉS de que los widgets principales sean visibles
+        self.bind("<<InvoiceSaved>>", self.report_tab.handle_invoice_saved)
+
 
 if __name__ == '__main__':
     app = App()
