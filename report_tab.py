@@ -1,9 +1,10 @@
 import tkinter as tk
-from tkinter import ttk, messagebox, simpledialog
+from tkinter import ttk, messagebox, simpledialog, Menu
 from tkcalendar import DateEntry
 import database
 import export_service
 import datetime
+from edit_invoice_window import EditInvoiceWindow
 
 class ReportTab(ttk.Frame):
     def __init__(self, parent):
@@ -15,9 +16,11 @@ class ReportTab(ttk.Frame):
 
         self._create_widgets()
         self._load_initial_data()
+        self._create_context_menu()
 
     def _create_widgets(self):
         """Crea la interfaz de la pestaña de reportes."""
+        # ... (código de filtros y agregados sin cambios) ...
         # --- A. Filtros ---
         filter_frame = ttk.LabelFrame(self, text="Filtros")
         filter_frame.pack(fill=tk.X, pady=5)
@@ -56,6 +59,7 @@ class ReportTab(ttk.Frame):
         self.total_re_label = ttk.Label(summary_frame, text="Total RE (€): 0.00")
         self.total_re_label.pack(side=tk.LEFT, padx=10)
 
+
         # --- C. Tabla de Reportes ---
         report_frame = ttk.LabelFrame(self, text="Facturas")
         report_frame.pack(fill="both", expand=True, pady=5)
@@ -74,14 +78,65 @@ class ReportTab(ttk.Frame):
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.report_tree.configure(yscrollcommand=scrollbar.set)
 
-        self.report_tree.bind("<Double-1>", self._on_double_click)
+        # Nuevos bindings
+        self.report_tree.bind("<Double-1>", self._open_edit_window)
+        self.report_tree.bind("<Button-3>", self._show_context_menu) # Clic derecho
 
-        # --- Botones de Acción ---
+        # Etiqueta de ayuda
+        help_label = ttk.Label(report_frame, text="Doble-clic para editar, Clic-derecho para más opciones.", style="TSecondary.TLabel")
+        help_label.pack(side=tk.BOTTOM, fill=tk.X)
+
+        # Botón de exportar (ya no se necesitan botones de acción aquí)
         action_frame = ttk.Frame(self)
         action_frame.pack(fill=tk.X, pady=5)
         ttk.Button(action_frame, text="Exportar a Excel", command=self._export_to_excel).pack(side=tk.LEFT, padx=5)
-        ttk.Button(action_frame, text="Borrar Factura Seleccionada", command=self._delete_invoice).pack(side=tk.LEFT, padx=5)
 
+    def _create_context_menu(self):
+        """Crea el menú contextual para el Treeview."""
+        self.context_menu = Menu(self, tearoff=0)
+        self.context_menu.add_command(label="Editar Factura...", command=self._open_edit_window_from_menu)
+        self.context_menu.add_command(label="Eliminar Factura", command=self._delete_invoice)
+        self.context_menu.add_separator()
+        self.context_menu.add_command(label="Cancelar")
+
+    def _show_context_menu(self, event):
+        """Muestra el menú contextual en la posición del cursor."""
+        # Seleccionar la fila bajo el cursor
+        item_id = self.report_tree.identify_row(event.y)
+        if item_id:
+            self.report_tree.selection_set(item_id)
+            self.context_menu.post(event.x_root, event.y_root)
+
+    def _get_selected_invoice_id(self):
+        """Obtiene el ID de la factura seleccionada en el Treeview."""
+        selected_items = self.report_tree.selection()
+        if not selected_items:
+            return None
+        return self.report_tree.item(selected_items[0])['values'][0]
+
+    def _open_edit_window(self, event=None):
+        """Abre la ventana de edición para la factura seleccionada."""
+        invoice_id = self._get_selected_invoice_id()
+        if not invoice_id:
+            return
+        EditInvoiceWindow(self, invoice_id, on_save_callback=self._load_report)
+
+    def _open_edit_window_from_menu(self):
+        self._open_edit_window() # Reutiliza la misma lógica
+
+    def _delete_invoice(self):
+        invoice_id = self._get_selected_invoice_id()
+        if not invoice_id:
+            messagebox.showwarning("Sin Selección", "Por favor, seleccione una factura para eliminar.")
+            return
+
+        if messagebox.askyesno("Confirmar Eliminación", f"¿Está seguro de que desea eliminar la factura ID {invoice_id}?"):
+            if database.delete_invoice(invoice_id):
+                self._load_report()
+            else:
+                messagebox.showerror("Error", "No se pudo eliminar la factura.")
+
+    # El resto de los métodos (_load_initial_data, _load_company_filter, etc.) permanecen igual
     def _load_initial_data(self):
         """Carga los datos iniciales para los filtros."""
         # Set initial dates (e.g., this month)
@@ -170,45 +225,6 @@ class ReportTab(ttk.Frame):
             messagebox.showinfo("Éxito", "El reporte se ha exportado a Excel correctamente.")
         else:
             messagebox.showerror("Error", "Ocurrió un error al exportar el archivo.")
-
-    def _delete_invoice(self):
-        selected_items = self.report_tree.selection()
-        if not selected_items:
-            messagebox.showwarning("Sin Selección", "Por favor, seleccione una factura para eliminar.")
-            return
-
-        item_data = self.report_tree.item(selected_items[0])
-        invoice_id = item_data['values'][0]
-
-        if messagebox.askyesno("Confirmar Eliminación", f"¿Está seguro de que desea eliminar la factura ID {invoice_id}?"):
-            if database.delete_invoice(invoice_id):
-                self._load_report()
-            else:
-                messagebox.showerror("Error", "No se pudo eliminar la factura.")
-
-    def _on_double_click(self, event):
-        """Maneja el doble clic para editar el factor."""
-        selected_items = self.report_tree.selection()
-        if not selected_items:
-            return
-
-        item_id = selected_items[0]
-        # Encontrar la factura correspondiente en nuestra lista de datos
-        invoice_id = self.report_tree.item(item_id)['values'][0]
-        invoice = next((inv for inv in self.current_invoice_list if inv['id'] == invoice_id), None)
-
-        if not invoice:
-            return
-
-        current_factor = invoice['factor']
-        new_factor = simpledialog.askfloat("Editar Factor", "Nuevo valor para el factor:",
-                                           initialvalue=current_factor, minvalue=0.0)
-
-        if new_factor is not None and new_factor != current_factor:
-            if database.update_invoice_factor_and_amount(invoice_id, new_factor, invoice['baseAmount'], invoice['iva'], invoice['re']):
-                self._load_report()
-            else:
-                messagebox.showerror("Error", "No se pudo actualizar el factor.")
 
     def handle_invoice_saved(self, event=None):
         """Receptor de eventos para recargar el reporte."""
