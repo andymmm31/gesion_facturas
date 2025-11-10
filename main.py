@@ -3,12 +3,13 @@ from tkinter import ttk
 import database
 from login_screen import LoginScreen
 from company_management_tab import CompanyManagementTab
+from invoice_form_tab import InvoiceFormTab
 
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Gestión de Facturas")
-        self.geometry("1024x768") # Aumentamos el tamaño para la nueva interfaz
+        self.geometry("1024x768")
 
         # Crear tablas de la base de datos al iniciar
         database.create_tables()
@@ -24,14 +25,13 @@ class App(tk.Tk):
         """Crea el Notebook con las pestañas principales, pero no lo muestra."""
         self.main_notebook = ttk.Notebook(self.container)
 
-        # Pestaña 1: Empresas (ahora funcional)
+        # Pestaña 1: Empresas
         company_tab = CompanyManagementTab(self.main_notebook)
         self.main_notebook.add(company_tab, text='Empresas')
 
-        # Pestaña 2: Registrar Factura (placeholder)
-        registrar_factura_frame = ttk.Frame(self.main_notebook)
-        self.main_notebook.add(registrar_factura_frame, text='Registrar Factura')
-        ttk.Label(registrar_factura_frame, text="Contenido de Registrar Factura").pack(pady=20, padx=20)
+        # Pestaña 2: Registrar Factura
+        invoice_form_tab = InvoiceFormTab(self.main_notebook)
+        self.main_notebook.add(invoice_form_tab, text='Registrar Factura')
 
         # Pestaña 3: Reportes (placeholder)
         reportes_frame = ttk.Frame(self.main_notebook)

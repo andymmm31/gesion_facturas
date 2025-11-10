@@ -65,7 +65,9 @@ def create_tables():
                 client TEXT,
                 amount REAL,
                 baseAmount REAL,
+                iva_percent REAL,
                 iva REAL,
+                re_percent REAL,
                 re REAL,
                 invoiceDate TEXT,
                 dueDate TEXT,
@@ -314,6 +316,132 @@ def delete_client(client_id):
     except Error as e:
         print(f"Error al eliminar cliente: {e}")
         return False
+    finally:
+        if conn:
+            conn.close()
+
+
+# --- Funciones de Invoices ---
+
+def add_invoice(invoice_data):
+    """Añade una nueva factura a la base de datos."""
+    conn = create_connection()
+    if conn is None:
+        return None
+
+    sql = ''' INSERT INTO invoices(company, client, baseAmount, iva_percent, iva,
+                                  re_percent, re, amount, invoiceDate, dueDate, timestamp, factor)
+              VALUES(:company, :client, :baseAmount, :iva_percent, :iva,
+                     :re_percent, :re, :amount, :invoiceDate, :dueDate, :timestamp, :factor) '''
+    try:
+        cursor = conn.cursor()
+        # Asegurarse de que el factor tiene un valor por defecto
+        invoice_data.setdefault('factor', 1.0)
+        cursor.execute(sql, invoice_data)
+        conn.commit()
+        return cursor.lastrowid
+    except Error as e:
+        print(f"Error al añadir factura: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+def get_last_invoice():
+    """Devuelve la última factura insertada."""
+    conn = create_connection()
+    if conn is None:
+        return None
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM invoices ORDER BY id DESC LIMIT 1")
+        return cursor.fetchone()
+    except Error as e:
+        print(f"Error al obtener la última factura: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+def get_invoice_by_id(invoice_id):
+    """Devuelve una factura por su ID."""
+    conn = create_connection()
+    if conn is None:
+        return None
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM invoices WHERE id = ?", (invoice_id,))
+        return cursor.fetchone()
+    except Error as e:
+        print(f"Error al obtener factura por ID: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+def update_invoice(invoice_id, invoice_data):
+    """Actualiza una factura existente."""
+    conn = create_connection()
+    if conn is None:
+        return False
+
+    # Construir la sentencia SET dinámicamente
+    fields = ", ".join([f"{key} = :{key}" for key in invoice_data])
+    sql = f"UPDATE invoices SET {fields} WHERE id = :id"
+    invoice_data['id'] = invoice_id
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute(sql, invoice_data)
+        conn.commit()
+        return True
+    except Error as e:
+        print(f"Error al actualizar factura: {e}")
+        return False
+    finally:
+        if conn:
+            conn.close()
+
+def get_invoices_for_report(filters):
+    """
+    Obtiene facturas para un reporte, con filtros opcionales.
+    'filters' es un diccionario que puede contener:
+    'start_date', 'end_date', 'company', 'client'
+    """
+    conn = create_connection()
+    if conn is None:
+        return []
+
+    try:
+        cursor = conn.cursor()
+        query = "SELECT * FROM invoices WHERE 1=1"
+        params = {}
+
+        if filters.get('start_date'):
+            query += " AND invoiceDate >= :start_date"
+            params['start_date'] = filters['start_date']
+
+        if filters.get('end_date'):
+            query += " AND invoiceDate <= :end_date"
+            params['end_date'] = filters['end_date']
+
+        if filters.get('company'):
+            query += " AND company = :company"
+            params['company'] = filters['company']
+
+        if filters.get('client'):
+            query += " AND client = :client"
+            params['client'] = filters['client']
+
+        query += " ORDER BY invoiceDate DESC"
+
+        cursor.execute(query, params)
+        return cursor.fetchall()
+    except Error as e:
+        print(f"Error al obtener facturas para reporte: {e}")
+        return []
     finally:
         if conn:
             conn.close()
