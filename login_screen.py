@@ -36,8 +36,8 @@ class LoginScreen(ttk.Frame):
 
     def _perform_login(self):
         """Gestiona el evento de clic del botón de login."""
-        email = self.email_entry.get()
-        password = self.password_entry.get()
+        email = self.email_entry.get().strip()
+        password = self.password_entry.get().strip()
 
         if database.login_user(email, password):
             self.on_login_success()
