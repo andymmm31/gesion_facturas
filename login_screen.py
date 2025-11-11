@@ -40,7 +40,8 @@ class LoginScreen(ttk.Frame):
         password = self.password_entry.get().strip()
 
         if database.login_user(email, password):
-            self.on_login_success()
+            # Pasar el email en el callback
+            self.on_login_success(email)
         else:
             self.error_label.config(text="Email o contraseña incorrecta.")
 

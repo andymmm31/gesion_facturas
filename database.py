@@ -488,5 +488,33 @@ def update_invoice_factor_and_amount(invoice_id, new_factor, base_amount, iva_am
             conn.close()
 
 
+def change_password(email, old_password, new_password):
+    """
+    Cambia la contraseña de un usuario si la contraseña antigua es correcta.
+    """
+    # Primero, verificar la contraseña antigua
+    if not login_user(email, old_password):
+        return False, "La contraseña antigua es incorrecta."
+
+    # Si la verificación es exitosa, actualizar con la nueva contraseña
+    conn = create_connection()
+    if conn is None:
+        return False, "No se pudo conectar a la base de datos."
+
+    new_password_hash = _hash_password(new_password)
+    sql = 'UPDATE users SET password = ? WHERE email = ?'
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute(sql, (new_password_hash, email))
+        conn.commit()
+        return True, "Contraseña actualizada correctamente."
+    except Error as e:
+        print(f"Error al cambiar la contraseña: {e}")
+        return False, "Error al actualizar la base de datos."
+    finally:
+        if conn:
+            conn.close()
+
 if __name__ == '__main__':
     create_tables()
