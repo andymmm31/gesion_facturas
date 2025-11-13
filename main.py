@@ -98,25 +98,28 @@ class App(tk.Tk):
             messagebox.showwarning("No ha iniciado sesión", "Debe iniciar sesión para cambiar la contraseña.")
 
     def _enable_protected_tabs(self):
-        # Eliminar placeholders en orden inverso para evitar problemas de índice
-        self.notebook.forget(2) # Eliminar placeholder de Reportes
-        self.notebook.forget(1) # Eliminar placeholder de Empresas
+        # Si las pestañas ya están creadas, simplemente las habilitamos
+        if hasattr(self, 'company_tab') and hasattr(self, 'report_tab'):
+            self.notebook.tab(1, state='normal')
+            self.notebook.tab(2, state='normal')
+        else:
+            # Si es la primera vez, eliminamos placeholders y creamos las pestañas
+            self.notebook.forget(2) # Reportes
+            self.notebook.forget(1) # Empresas
 
-        # Añadir las pestañas funcionales en el orden correcto
-        self.company_tab = CompanyManagementTab(self.notebook)
-        self.notebook.insert(1, self.company_tab, text='Empresas')
+            self.company_tab = CompanyManagementTab(self.notebook)
+            self.notebook.insert(1, self.company_tab, text='Empresas')
 
-        self.report_tab = ReportTab(self.notebook)
-        self.notebook.insert(2, self.report_tab, text='Reportes')
+            self.report_tab = ReportTab(self.notebook)
+            self.notebook.insert(2, self.report_tab, text='Reportes')
 
-        # Habilitar las pestañas
-        self.notebook.tab(1, state='normal')
-        self.notebook.tab(2, state='normal')
+            # Configurar bindings solo la primera vez que se crean
+            self.bind("<<InvoiceSaved>>", self.report_tab.handle_invoice_saved)
+            self.bind("<<CompaniesUpdated>>", self.invoice_form_tab.handle_companies_updated)
+            self.bind("<<CompaniesUpdated>>", self.report_tab.handle_companies_updated, add='+')
 
-        # Configurar bindings después de crear las pestañas
-        self.bind("<<InvoiceSaved>>", self.report_tab.handle_invoice_saved)
-        self.bind("<<CompaniesUpdated>>", self.invoice_form_tab.handle_companies_updated)
-        self.bind("<<CompaniesUpdated>>", self.report_tab.handle_companies_updated, add='+')
+        # Forzar el refresco seleccionando la primera pestaña
+        self.notebook.select(0)
 
     def _disable_protected_tabs(self):
         # Revertir a placeholders si las pestañas existen
